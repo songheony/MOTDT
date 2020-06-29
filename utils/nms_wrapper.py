@@ -5,12 +5,12 @@
 # Written by Ross Girshick
 # --------------------------------------------------------
 
-import numpy as np
+import torch
 from torchvision.ops import nms
 
 
 def nms_detections(pred_boxes, scores, nms_thresh):
-    dets = np.hstack((pred_boxes,
-                      scores[:, np.newaxis])).astype(np.float32)
-    keep = nms(dets, nms_thresh)
+    pred_boxes = torch.FloatTensor(pred_boxes)
+    scores = torch.FloatTensor(scores)
+    keep = nms(pred_boxes, scores, nms_thresh)
     return keep

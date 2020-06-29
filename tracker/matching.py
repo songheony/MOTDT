@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from scipy.spatial.distance import cdist
-from sklearn.utils import linear_assignment_
+from scipy.optimize import linear_sum_assignment
 
 from utils.cython_bbox import bbox_ious
 from utils import kalman_filter
@@ -10,7 +10,7 @@ from utils import visualization
 
 def _indices_to_matches(cost_matrix, indices, thresh):
     matched_cost = cost_matrix[tuple(zip(*indices))]
-    matched_mask = (matched_cost <= thresh)
+    matched_mask = matched_cost <= thresh
 
     matches = indices[matched_mask]
     unmatched_a = tuple(set(range(cost_matrix.shape[0])) - set(matches[:, 0]))
@@ -27,10 +27,16 @@ def linear_assignment(cost_matrix, thresh):
     :return: matches, unmatched_a, unmatched_b
     """
     if cost_matrix.size == 0:
-        return np.empty((0, 2), dtype=int), tuple(range(cost_matrix.shape[0])), tuple(range(cost_matrix.shape[1]))
+        return (
+            np.empty((0, 2), dtype=int),
+            tuple(range(cost_matrix.shape[0])),
+            tuple(range(cost_matrix.shape[1])),
+        )
 
     cost_matrix[cost_matrix > thresh] = thresh + 1e-4
-    indices = linear_assignment_.linear_assignment(cost_matrix)
+    indices = linear_sum_assignment(cost_matrix)
+    indices = np.asarray(indices)
+    indices = np.transpose(indices)
 
     return _indices_to_matches(cost_matrix, indices, thresh)
 
@@ -49,7 +55,7 @@ def ious(atlbrs, btlbrs):
 
     ious = bbox_ious(
         np.ascontiguousarray(atlbrs, dtype=np.float),
-        np.ascontiguousarray(btlbrs, dtype=np.float)
+        np.ascontiguousarray(btlbrs, dtype=np.float),
     )
 
     return ious
@@ -71,7 +77,7 @@ def iou_distance(atracks, btracks):
     return cost_matrix
 
 
-def nearest_reid_distance(tracks, detections, metric='cosine'):
+def nearest_reid_distance(tracks, detections, metric="cosine"):
     """
     Compute cost based on ReID features
     :type tracks: list[STrack]
@@ -83,14 +89,18 @@ def nearest_reid_distance(tracks, detections, metric='cosine'):
     if cost_matrix.size == 0:
         return cost_matrix
 
-    det_features = np.asarray([track.curr_feature for track in detections], dtype=np.float32)
+    det_features = np.asarray(
+        [track.curr_feature for track in detections], dtype=np.float32
+    )
     for i, track in enumerate(tracks):
-        cost_matrix[i, :] = np.maximum(0.0, cdist(track.features, det_features, metric).min(axis=0))
+        cost_matrix[i, :] = np.maximum(
+            0.0, cdist(track.features, det_features, metric).min(axis=0)
+        )
 
     return cost_matrix
 
 
-def mean_reid_distance(tracks, detections, metric='cosine'):
+def mean_reid_distance(tracks, detections, metric="cosine"):
     """
     Compute cost based on ReID features
     :type tracks: list[STrack]
@@ -103,8 +113,12 @@ def mean_reid_distance(tracks, detections, metric='cosine'):
     if cost_matrix.size == 0:
         return cost_matrix
 
-    track_features = np.asarray([track.curr_feature for track in tracks], dtype=np.float32)
-    det_features = np.asarray([track.curr_feature for track in detections], dtype=np.float32)
+    track_features = np.asarray(
+        [track.curr_feature for track in tracks], dtype=np.float32
+    )
+    det_features = np.asarray(
+        [track.curr_feature for track in detections], dtype=np.float32
+    )
     cost_matrix = cdist(track_features, det_features, metric)
 
     return cost_matrix
@@ -118,6 +132,7 @@ def gate_cost_matrix(kf, cost_matrix, tracks, detections, only_position=False):
     measurements = np.asarray([det.to_xyah() for det in detections])
     for row, track in enumerate(tracks):
         gating_distance = kf.gating_distance(
-            track.mean, track.covariance, measurements, only_position)
+            track.mean, track.covariance, measurements, only_position
+        )
         cost_matrix[row, gating_distance > gating_threshold] = np.inf
     return cost_matrix
