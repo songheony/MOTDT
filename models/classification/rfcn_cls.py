@@ -6,7 +6,7 @@ from torch.autograd import Variable
 
 from models import net_utils
 from models.backbone.sqeezenet import DilationLayer, FeatExtractorSqueezeNetx16
-from models.psroi_pooling.modules.psroi_pool import PSRoIPool
+from torchvision.ops import PSRoIPool
 
 
 class Model(nn.Module):
