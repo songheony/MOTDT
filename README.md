@@ -1,5 +1,7 @@
 ## MOTDT
 
+I've edited the code for compatiblity with PyTorch 1.7
+
 ### Reference
 
 ```
